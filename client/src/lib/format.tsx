@@ -37,7 +37,7 @@ export function renderInline(text: string): ReactNode[] {
   const re = new RegExp(TOKEN.source, "g");
   while ((m = re.exec(text)) !== null) {
     const head = text.slice(last, m.index);
-    if (head) out.push(<Fragment key={key++}>{escapeHtml(head)}</Fragment>);
+    if (head) out.push(escapeHtml(head));
     const t = m[1];
     if (t === "\n" || t === "\r\n") {
       out.push(<br key={key++} />);
@@ -51,7 +51,7 @@ export function renderInline(text: string): ReactNode[] {
     last = m.index + t.length;
   }
   const rest = text.slice(last);
-  if (rest) out.push(<Fragment key={key++}>{escapeHtml(rest)}</Fragment>);
+  if (rest) out.push(escapeHtml(rest));
   return out;
 }
 

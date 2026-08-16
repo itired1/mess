@@ -503,6 +503,11 @@ body {
   gap: 4px;
 }
 
+.messages > div[data-mid] {
+  display: flex;
+  flex-direction: column;
+}
+
 .day-divider {
   align-self: center;
   font-size: 12px;
