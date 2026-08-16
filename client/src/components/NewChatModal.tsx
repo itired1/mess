@@ -41,7 +41,7 @@ export default function NewChatModal({ users, onClose, onCreate }: NewChatModalP
                 onClick={() => toggle(u.id)}
               >
                 <span className="avatar" style={{ background: u.gradient, width: 34, height: 34, fontSize: 13 }}>
-                  {u.name.charAt(0)}
+                  {u.avatar ? <img src={u.avatar} alt={u.name} draggable={false} /> : u.name.charAt(0)}
                 </span>
                 <span>{u.name}</span>
                 <i className="check">✓</i>

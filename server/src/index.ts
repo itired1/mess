@@ -21,6 +21,7 @@ import {
   registerUser,
   saveNow,
   toggleReaction,
+  updateProfile,
 } from "./store.js";
 import { ChatSummary, NewChatInput, NewMessageInput } from "./types.js";
 
@@ -32,6 +33,11 @@ app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_ROOT = path.resolve(__dirname, "../../data");
+const UPLOADS = path.join(DATA_ROOT, "uploads");
+fs.mkdirSync(UPLOADS, { recursive: true });
+app.use("/uploads", express.static(UPLOADS, { maxAge: "7d", immutable: true }));
+
 const CLIENT_DIST = path.resolve(__dirname, "../../client/dist");
 if (fs.existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
@@ -83,6 +89,7 @@ function summaryOf(id: string): ChatSummary | undefined {
     id: c.id,
     name: c.name,
     gradient: c.gradient,
+    members: c.members,
     memberCount: c.members.length,
     online: c.members.some((m) => ONLINE.has(m)),
     unread: 0,
@@ -133,6 +140,79 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
   if (!user) return res.status(404).json({ error: "Пользователь не найден" });
   res.json({ user });
 });
+
+app.post("/api/profile", requireAuth, (req, res) => {
+  const body = req.body ?? {};
+  const me = getUser(getUserId(req));
+  if (!me) return res.status(404).json({ error: "Пользователь не найден" });
+
+  let avatar: string | null | undefined;
+  let banner: string | null | undefined;
+
+  if ("avatar" in body) {
+    if (typeof body.avatar !== "string") return res.status(400).json({ error: "Неверный формат аватара" });
+    if (body.avatar === "") {
+      avatar = null;
+    } else {
+      const url = saveImage(body.avatar, "avatars", me.avatar);
+      if (!url) return res.status(400).json({ error: "Аватар: нужен PNG/JPEG/WebP/GIF до 6 МБ" });
+      avatar = url;
+    }
+  }
+
+  if ("banner" in body) {
+    if (typeof body.banner !== "string") return res.status(400).json({ error: "Неверный формат баннера" });
+    if (body.banner === "") {
+      banner = null;
+    } else {
+      const url = saveImage(body.banner, "banners", me.banner);
+      if (!url) return res.status(400).json({ error: "Баннер: нужен PNG/JPEG/WebP/GIF до 6 МБ" });
+      banner = url;
+    }
+  }
+
+  const user = updateProfile(me.id, { avatar, banner });
+  if (!user) return res.status(404).json({ error: "Пользователь не найден" });
+  io.emit("profile:updated", user);
+  res.json(user);
+});
+
+const EXT_BY_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+const MAX_IMG_BYTES = 6 * 1024 * 1024;
+
+function saveImage(dataUrl: string, sub: string, oldUrl?: string | null): string | null {
+  const m = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(dataUrl);
+  if (!m) return null;
+  const ext = EXT_BY_MIME[m[1].toLowerCase()];
+  if (!ext) return null;
+  let buf: Buffer;
+  try {
+    buf = Buffer.from(m[2], "base64");
+  } catch {
+    return null;
+  }
+  if (buf.length === 0 || buf.length > MAX_IMG_BYTES) return null;
+
+  const name = `${sub}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const dir = path.join(UPLOADS, sub);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, name), buf);
+
+  if (oldUrl && oldUrl.startsWith("/uploads/")) {
+    const oldPath = path.join(UPLOADS, oldUrl.slice("/uploads/".length));
+    try {
+      if (oldPath.startsWith(UPLOADS)) fs.unlinkSync(oldPath);
+    } catch {
+      /* файл уже удалён */
+    }
+  }
+  return `/uploads/${sub}/${name}`;
+}
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });

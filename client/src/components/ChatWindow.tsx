@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Chat, ReplyRef } from "../types";
+import { Chat, ReplyRef, User } from "../types";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
 
@@ -9,6 +9,7 @@ interface ChatWindowProps {
   readUpTo: number;
   theme: "light" | "dark";
   myId: string;
+  peer?: User | null;
   onThemeToggle: () => void;
   replyTo: ReplyRef | null;
   onReplyTo: (r: ReplyRef | null) => void;
@@ -24,6 +25,7 @@ export default function ChatWindow({
   readUpTo,
   theme,
   myId,
+  peer,
   onThemeToggle,
   replyTo,
   onReplyTo,
@@ -85,7 +87,11 @@ export default function ChatWindow({
     <main className="chat glass">
       <header className="chat-header">
         <span className="avatar" style={{ background: chat.gradient, width: 46, height: 46, fontSize: 17 }}>
-          {chat.name.charAt(0)}
+          {peer?.avatar ? (
+            <img src={peer.avatar} alt={peer.name} draggable={false} />
+          ) : (
+            chat.name.charAt(0)
+          )}
           <i className={`status-dot ${peerOnline ? "on" : ""}`} />
         </span>
         <div className="chat-title">

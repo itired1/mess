@@ -23,11 +23,13 @@ import NewChatModal from "./components/NewChatModal";
 import Loader, { LoaderMode } from "./components/Loader";
 import AnimSettings from "./components/AnimSettings";
 import AuthScreen from "./components/AuthScreen";
+import ProfileModal from "./components/ProfileModal";
 
 type Theme = "light" | "dark";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<Record<string, User>>({});
   const [authBooting, setAuthBooting] = useState(true);
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
@@ -43,6 +45,7 @@ export default function App() {
   );
   const [booted, setBooted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [animMode, setAnimMode] = useState<LoaderMode>(() => {
     const v = localStorage.getItem("lb_anim");
     return v === "calm" || v === "off" ? v : "full";
@@ -125,6 +128,10 @@ export default function App() {
 
     const socket = connectSocket();
 
+    fetchUsers()
+      .then((list) => setUsers(Object.fromEntries(list.map((u) => [u.id, u]))))
+      .catch(console.error);
+
     fetchChats()
       .then((list) => {
         setChats(list);
@@ -139,6 +146,11 @@ export default function App() {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
     socket.on("connect_error", () => setConnected(false));
+
+    socket.on("profile:updated", (u: User) => {
+      setUsers((prev) => ({ ...prev, [u.id]: u }));
+      setUser((prev) => (prev && prev.id === u.id ? u : prev));
+    });
 
     socket.on("message:new", (msg: Message) => {
       setChats((prev) =>
@@ -223,6 +235,9 @@ export default function App() {
 
   const ready = connected && activeChat !== null;
 
+  const peerUserId = activeChat?.members.find((m) => m !== user?.id) ?? null;
+  const peer = peerUserId ? users[peerUserId] ?? null : null;
+
   if (authBooting) {
     return <Loader ready={false} onDone={() => {}} mode={animMode} />;
   }
@@ -251,12 +266,25 @@ export default function App() {
         onNewChat={openNewChat}
         onSettings={() => setShowSettings((s) => !s)}
         onLogout={handleLogout}
+        onOpenProfile={() => setShowProfile(true)}
         connected={connected}
         me={user}
+        users={users}
       />
 
       {showSettings && (
         <AnimSettings mode={animMode} onChange={setAnimMode} onClose={() => setShowSettings(false)} />
+      )}
+
+      {showProfile && user && (
+        <ProfileModal
+          user={user}
+          onClose={() => setShowProfile(false)}
+          onUpdated={(u) => {
+            setUser((prev) => (prev && prev.id === u.id ? u : prev));
+            setUsers((prev) => ({ ...prev, [u.id]: u }));
+          }}
+        />
       )}
 
       <ChatWindow
@@ -265,6 +293,7 @@ export default function App() {
         readUpTo={activeChat ? readUpTo[activeChat.id] ?? 0 : 0}
         theme={theme}
         myId={user.id}
+        peer={peer}
         onThemeToggle={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
         replyTo={replyTo}
         onReplyTo={setReplyTo}

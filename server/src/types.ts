@@ -2,6 +2,8 @@ export interface User {
   id: string;
   name: string;
   gradient: string;
+  avatar?: string;
+  banner?: string;
   online: boolean;
 }
 
@@ -41,6 +43,7 @@ export interface ChatSummary {
   id: string;
   name: string;
   gradient: string;
+  members: string[];
   memberCount: number;
   online: boolean;
   unread: number;

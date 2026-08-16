@@ -10,6 +10,7 @@ interface ChatItemProps {
   active: boolean;
   onSelect: (id: string) => void;
   meId: string;
+  avatarSrc?: string | null;
 }
 
 function timeLabel(ts: number): string {
@@ -31,6 +32,7 @@ export default function ChatItem({
   active,
   onSelect,
   meId,
+  avatarSrc,
 }: ChatItemProps) {
   const preview = lastMessage
     ? `${lastMessage.authorId === meId ? "Вы: " : ""}${lastMessage.text}`
@@ -38,7 +40,7 @@ export default function ChatItem({
 
   return (
     <li className={`chat-item ${active ? "active" : ""}`} onClick={() => onSelect(id)}>
-      <Avatar gradient={gradient} name={name} online={online} size={46} />
+      <Avatar gradient={gradient} name={name} online={online} size={46} src={avatarSrc} />
       <div className="chat-meta">
         <div className="chat-name">{name}</div>
         <div className="chat-preview">{preview}</div>

@@ -10,8 +10,10 @@ interface SidebarProps {
   onNewChat: () => void;
   onSettings: () => void;
   onLogout: () => void;
+  onOpenProfile: () => void;
   connected: boolean;
   me: User;
+  users: Record<string, User>;
 }
 
 export default function Sidebar({
@@ -22,8 +24,10 @@ export default function Sidebar({
   onNewChat,
   onSettings,
   onLogout,
+  onOpenProfile,
   connected,
   me,
+  users,
 }: SidebarProps) {
   return (
     <aside className="sidebar glass">
@@ -66,27 +70,32 @@ export default function Sidebar({
       </div>
 
       <ul className="chat-list">
-        {chats.map((c) => (
-          <ChatItem
-            key={c.id}
-            id={c.id}
-            name={c.name}
-            gradient={c.gradient}
-            online={c.online}
-            unread={c.unread}
-            lastMessage={c.lastMessage}
-            active={c.id === activeId}
-            onSelect={onSelect}
-            meId={me.id}
-          />
-        ))}
+        {chats.map((c) => {
+          const otherId = c.members.find((id) => id !== me.id);
+          const other = otherId ? users[otherId] : undefined;
+          return (
+            <ChatItem
+              key={c.id}
+              id={c.id}
+              name={c.name}
+              gradient={c.gradient}
+              online={c.online}
+              unread={c.unread}
+              lastMessage={c.lastMessage}
+              active={c.id === activeId}
+              onSelect={onSelect}
+              meId={me.id}
+              avatarSrc={other?.avatar ?? null}
+            />
+          );
+        })}
         {chats.length === 0 && (
           <li className="chat-empty">Чатов пока нет — создайте свой</li>
         )}
       </ul>
 
-      <footer className="sidebar-footer">
-        <Avatar gradient={me.gradient} name={me.name} size={42} />
+      <footer className="sidebar-footer" onClick={onOpenProfile} role="button" title="Открыть профиль">
+        <Avatar gradient={me.gradient} name={me.name} size={42} src={me.avatar} />
         <div>
           <div className="me-name">{me.name}</div>
           <div className={`me-status ${connected ? "connected" : ""}`}>
@@ -94,6 +103,7 @@ export default function Sidebar({
             {connected ? "в сети" : "нет связи"}
           </div>
         </div>
+        <span className="me-chevron" aria-hidden="true">›</span>
       </footer>
     </aside>
   );

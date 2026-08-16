@@ -87,6 +87,21 @@ export async function fetchMe(): Promise<User> {
   return data.user as User;
 }
 
+export interface ProfileUpdate {
+  avatar?: string;
+  banner?: string;
+}
+
+export async function updateProfile(payload: ProfileUpdate): Promise<User> {
+  const res = await authFetch("/api/profile", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({ error: "Сервер не отвечает" }));
+  if (!res.ok) throw new Error(data.error ?? "Не удалось сохранить профиль");
+  return data as User;
+}
+
 export async function fetchUsers(): Promise<User[]> {
   const res = await authFetch("/api/users");
   if (!res.ok) throw new Error("Не удалось загрузить пользователей");

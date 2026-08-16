@@ -82,7 +82,14 @@ function loadDb() {
 loadDb();
 
 function publicUser(u: FullUser): User {
-  return { id: u.id, name: u.name, gradient: u.gradient, online: ONLINE.has(u.id) };
+  return {
+    id: u.id,
+    name: u.name,
+    gradient: u.gradient,
+    online: ONLINE.has(u.id),
+    avatar: u.avatar,
+    banner: u.banner,
+  };
 }
 
 function userById(id: string): FullUser | undefined {
@@ -129,6 +136,18 @@ export function loginUser(name: string, password: string): User | null {
 export function getUser(id: string): User | null {
   const u = userById(id);
   return u ? publicUser(u) : null;
+}
+
+export function updateProfile(
+  userId: string,
+  fields: { avatar?: string | null; banner?: string | null }
+): User | null {
+  const u = userById(userId);
+  if (!u) return null;
+  if ("avatar" in fields && fields.avatar !== undefined) u.avatar = fields.avatar ?? undefined;
+  if ("banner" in fields && fields.banner !== undefined) u.banner = fields.banner ?? undefined;
+  scheduleSave();
+  return publicUser(u);
 }
 
 export function listUsers(excludeId?: string): User[] {
