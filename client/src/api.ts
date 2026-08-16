@@ -92,6 +92,12 @@ export interface ProfileUpdate {
   banner?: string;
 }
 
+export async function checkName(name: string): Promise<{ available: boolean; reason?: string }> {
+  const res = await fetch(`${SERVER_URL}/api/auth/check-name?name=${encodeURIComponent(name)}`);
+  if (!res.ok) return { available: false, reason: "error" };
+  return res.json();
+}
+
 export async function updateProfile(payload: ProfileUpdate): Promise<User> {
   const res = await authFetch("/api/profile", {
     method: "POST",

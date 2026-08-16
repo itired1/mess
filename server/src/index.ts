@@ -10,10 +10,12 @@ import {
   addChat,
   addMessage,
   CHATS,
+  checkPassword,
   deleteMessage,
   getChat,
   getMessage,
   getUser,
+  isNameTaken,
   listUsers,
   loginUser,
   ONLINE,
@@ -112,15 +114,30 @@ app.post("/api/auth/register", (req, res) => {
   if (typeof name !== "string" || typeof password !== "string") {
     return res.status(400).json({ error: "Не хватает данных" });
   }
-  const user = registerUser(name, password);
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 24) {
+    return res.status(400).json({ error: "Имя до 24 символов" });
+  }
+  if (isNameTaken(trimmed)) {
+    return res.status(409).json({ error: "Имя уже занято" });
+  }
+  const check = checkPassword(password);
+  if (!check.ok) {
+    const fail = check.rules.find((r) => !r.ok);
+    return res.status(400).json({ error: `Пароль слабоват: ${fail?.label.toLowerCase() ?? "усильте его"}` });
+  }
+  const user = registerUser(trimmed, password);
   if (!user) {
-    return res.status(409).json({
-      error: name.trim() && password.length >= 4
-        ? "Имя уже занято"
-        : "Имя (до 24 симв.) и пароль (от 4 симв.) — обязательны",
-    });
+    return res.status(400).json({ error: "Что-то пошло не так, попробуйте ещё раз" });
   }
   res.status(201).json({ user, token: issueToken(user.id) });
+});
+
+app.get("/api/auth/check-name", (req, res) => {
+  const name = String((req.query as { name?: unknown }).name ?? "").trim();
+  if (!name) return res.json({ available: false, reason: "empty" });
+  if (name.length > 24) return res.json({ available: false, reason: "too_long" });
+  res.json({ available: !isNameTaken(name), reason: "ok" });
 });
 
 app.post("/api/auth/login", (req, res) => {

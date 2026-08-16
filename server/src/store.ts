@@ -109,10 +109,31 @@ export function verifyPassword(password: string, stored: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(calc, "hex"));
 }
 
+export interface PasswordRule {
+  label: string;
+  ok: boolean;
+}
+
+export function checkPassword(password: string): { ok: boolean; score: number; rules: PasswordRule[] } {
+  const rules: PasswordRule[] = [
+    { label: "минимум 6 символов", ok: password.length >= 6 },
+    { label: "буквы и цифры", ok: /[a-zа-яё]/i.test(password) && /\d/.test(password) },
+    { label: "есть заглавная буква", ok: /[A-ZА-ЯЁ]/.test(password) },
+    { label: "спецсимвол или 12+", ok: /[^a-z0-9а-яё]/i.test(password) || password.length >= 12 },
+  ];
+  const score = rules.filter((r) => r.ok).length;
+  return { ok: rules[0].ok && rules[1].ok, score, rules };
+}
+
+export function isNameTaken(name: string): boolean {
+  const trimmed = name.trim();
+  return USERS.some((u) => u.name.toLowerCase() === trimmed.toLowerCase());
+}
+
 export function registerUser(name: string, password: string): User | null {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length > 24) return null;
-  if (password.length < 4) return null;
+  if (!checkPassword(password).ok) return null;
   if (USERS.some((u) => u.name.toLowerCase() === trimmed.toLowerCase())) return null;
 
   const u: FullUser = {
