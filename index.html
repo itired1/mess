@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lilbrumessage</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="loader" role="status" aria-label="Загрузка lilbrumessage">
+  <div class="loader-ambient" aria-hidden="true">
+    <span class="ab ab-1">💬</span>
+    <span class="ab ab-2">👍</span>
+    <span class="ab ab-3">🎧</span>
+    <span class="ab ab-4">📷</span>
+    <span class="ab ab-5">🔥</span>
+    <span class="ab ab-6">💌</span>
+    <span class="ab ab-7">⭐</span>
+  </div>
+  <div class="loader-bubbles" aria-hidden="true"></div>
+  <div class="loader-toasts" id="loaderToasts" aria-hidden="true"></div>
+  <div class="loader-inner">
+    <div class="loader-logo">
+      <span class="loader-ring"></span>
+      <div class="loader-icon">💬</div>
+    </div>
+    <div class="loader-title" aria-hidden="true">
+      <span>l</span><span>i</span><span>l</span><span>b</span><span>r</span><span>u</span><span>m</span><span>e</span><span>s</span><span>s</span><span>a</span><span>g</span><span>e</span>
+    </div>
+    <div class="loader-msg-row">
+      <div class="loader-msg" id="loaderMsg">Запускаем…</div>
+      <div class="loader-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
+    <div class="loader-progress">
+      <div class="loader-bar"><i id="loaderBarFill"></i></div>
+      <span class="loader-percent" id="loaderPercent">0%</span>
+    </div>
+  </div>
+  <div class="loader-skip" aria-hidden="true">нажми, чтобы пропустить</div>
+</div>
+
+<div id="app"></div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

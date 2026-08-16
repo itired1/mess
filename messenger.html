@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lilbrumessage</title>
+<style>
+  :root {
+    --bg-1: #0a0d1c;
+    --bg-2: #10152e;
+    --blob-1: rgba(96, 64, 255, .45);
+    --blob-2: rgba(34, 110, 255, .35);
+    --blob-3: rgba(214, 54, 255, .28);
+    --glass: rgba(255, 255, 255, .055);
+    --glass-strong: rgba(255, 255, 255, .09);
+    --glass-hover: rgba(255, 255, 255, .12);
+    --glass-border: rgba(255, 255, 255, .1);
+    --text-primary: #eef0ff;
+    --text-secondary: rgba(226, 229, 255, .58);
+    --text-faint: rgba(226, 229, 255, .34);
+    --accent-1: #7c6cff;
+    --accent-2: #4f8cff;
+    --accent-grad: linear-gradient(135deg, #7c6cff, #4f8cff);
+    --accent-soft: rgba(124, 108, 255, .16);
+    --danger: #ff6b81;
+    --bubble-own: linear-gradient(135deg, rgba(124,108,255,.85), rgba(79,140,255,.85));
+    --radius-lg: 22px;
+    --radius-md: 16px;
+    --radius-sm: 11px;
+    --blur: 10px;
+    --shadow: 0 8px 32px rgba(0, 0, 0, .38);
+    --shadow-soft: 0 4px 16px rgba(0, 0, 0, .28);
+    --tr: .2s cubic-bezier(.4, 0, .2, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--glass-hover); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", Roboto, -apple-system, "Helvetica Neue", sans-serif;
+    color: var(--text-primary);
+    background: linear-gradient(160deg, var(--bg-1), var(--bg-2));
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Плавающие фоновые "стеклянные" пятна */
+  .bg-blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: .55;
+    z-index: 0;
+    animation: float 18s ease-in-out infinite;
+  }
+  .blob-1 { width: 520px; height: 520px; background: var(--blob-1); top: -140px; left: -120px; }
+  .blob-2 { width: 460px; height: 460px; background: var(--blob-2); bottom: -160px; right: -100px; animation-delay: -6s; }
+  .blob-3 { width: 380px; height: 380px; background: var(--blob-3); top: 45%; left: 55%; animation-delay: -12s; }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(40px, -50px) scale(1.1); }
+    66% { transform: translate(-30px, 30px) scale(.95); }
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 16px;
+    height: 100vh;
+    padding: 16px;
+  }
+
+  .glass {
+    position: relative;
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--glass);
+    backdrop-filter: blur(var(--blur));
+    -webkit-backdrop-filter: blur(var(--blur));
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glass > * { position: relative; z-index: 1; }
+
+  /* ===== ЛЕВАЯ ПАНЕЛЬ ===== */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 340px;
+    min-width: 300px;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 22px 14px;
+  }
+  .sidebar-header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+  .sidebar-header h1 span {
+    background: var(--accent-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    background: var(--glass);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--tr);
+  }
+  .icon-btn:hover { background: var(--glass-hover); color: var(--text-primary); transform: translateY(-1px); }
+
+  .search {
+    margin: 4px 16px 14px;
+    position: relative;
+  }
+  .search svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-faint);
+  }
+  .search input {
+    width: 100%;
+    height: 42px;
+    padding: 0 16px 0 42px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: var(--glass);
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    transition: var(--tr);
+  }
+  .search input::placeholder { color: var(--text-faint); }
+  .search input:focus { border-color: var(--accent-1); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .chat-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 10px 12px;
+    list-style: none;
+  }
+
+  .chat-item {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 12px 12px;
+    margin-bottom: 4px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color .12s ease;
+    position: relative;
+    border: 1px solid transparent;
+  }
+  .chat-item:hover { background: var(--glass-strong); }
+  .chat-item.active {
+    background: var(--accent-soft);
+    border-color: rgba(124, 108, 255, .35);
+  }
+  .chat-item.active::before {
+    content: "";
+    position: absolute;
+    left: -10px;
+    top: 22%;
+    bottom: 22%;
+    width: 4px;
+    border-radius: 4px;
+    background: var(--accent-grad);
+    box-shadow: 0 0 12px var(--accent-1);
+  }
+
+  .avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .18);
+    position: relative;
+  }
+  .avatar .status-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #34d399;
+    border: 2.5px solid #151a33;
+    box-shadow: 0 0 8px rgba(52, 211, 153, .7);
+  }
+
+  .chat-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .chat-name {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chat-preview {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 3px;
+  }
+  .chat-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .chat-time {
+    font-size: 11.5px;
+    color: var(--text-faint);
+  }
+  .chat-badge {
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: var(--accent-grad);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(124, 108, 255, .5);
+  }
+
+  .sidebar-footer {
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid var(--glass-border);
+  }
+  .sidebar-footer .me-name { font-size: 14px; font-weight: 600; }
+  .sidebar-footer .me-status { font-size: 12px; color: var(--text-faint); }
+
+  /* ===== ЦЕНТРАЛЬНАЯ ПАНЕЛЬ ===== */
+  .chat {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .chat-header .avatar { width: 46px; height: 46px; font-size: 17px; }
+  .chat-title {
+    flex: 1;
+    min-width: 0;
+  }
+  .chat-title .name {
+    font-size: 17px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chat-title .status {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chat-title .status i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 8px rgba(52, 211, 153, .8);
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .day-divider {
+    align-self: center;
+    font-size: 12px;
+    color: var(--text-faint);
+    padding: 4px 14px;
+    margin-bottom: 10px;
+    border-radius: 20px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+  }
+
+  .msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 62%;
+    animation: msg-in .38s cubic-bezier(.2, .8, .3, 1) backwards;
+  }
+  .msg.own { align-self: flex-end; align-items: flex-end; }
+  .msg.other { align-self: flex-start; align-items: flex-start; }
+
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(22px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .msg-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-1);
+    margin: 6px 4px 3px;
+  }
+
+  .bubble {
+    padding: 11px 15px;
+    font-size: 14.5px;
+    line-height: 1.45;
+    box-shadow: var(--shadow-soft);
+    word-break: break-word;
+  }
+  .msg.other .bubble {
+    background: var(--glass-strong);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px 18px 18px 5px;
+  }
+  .msg.own .bubble {
+    background: var(--bubble-own);
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 18px 18px 5px 18px;
+    color: #fff;
+  }
+  .msg-time {
+    font-size: 10.5px;
+    color: var(--text-faint);
+    margin-top: 3px;
+    padding: 0 4px;
+  }
+  .msg.own .msg-time { color: rgba(255, 255, 255, .55); }
+
+  .msg-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== ИНДИКАТОР «ПЕЧАТАЕТ» ===== */
+  .typing {
+    display: none;
+    align-self: flex-start;
+    align-items: center;
+    gap: 5px;
+    padding: 13px 17px;
+    margin: 0 28px 8px;
+    border-radius: 18px 18px 18px 5px;
+    background: var(--glass-strong);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-soft);
+    animation: msg-in .3s ease backwards;
+  }
+  .typing.show { display: flex; }
+  .typing-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: .15s; }
+  .typing-dot:nth-child(3) { animation-delay: .3s; }
+
+  @keyframes pulse {
+    0%, 60%, 100% { transform: translateY(0); opacity: .35; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  /* ===== ПОЛЕ ВВОДА ===== */
+  .composer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 22px 20px;
+  }
+  .composer input {
+    flex: 1;
+    height: 48px;
+    padding: 0 18px;
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    background: var(--glass);
+    color: var(--text-primary);
+    font-size: 14.5px;
+    outline: none;
+    transition: var(--tr);
+  }
+  .composer input::placeholder { color: var(--text-faint); }
+  .composer input:focus {
+    border-color: var(--accent-1);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent-grad);
+    color: #fff;
+    cursor: pointer;
+    transition: var(--tr);
+    box-shadow: 0 4px 16px rgba(124, 108, 255, .5);
+  }
+  .send-btn:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 8px 24px rgba(124, 108, 255, .6);
+  }
+  .send-btn:active:not(:disabled) { transform: scale(.94); }
+  .send-btn:disabled {
+    opacity: .35;
+    cursor: default;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-faint);
+    font-size: 15px;
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-blob blob-1"></div>
+<div class="bg-blob blob-2"></div>
+<div class="bg-blob blob-3"></div>
+
+<div class="app">
+
+  <!-- ЛЕВАЯ ПАНЕЛЬ -->
+  <aside class="sidebar glass">
+    <div class="sidebar-header">
+      <h1>lilbru<span>message</span></h1>
+      <button class="icon-btn" id="newChatBtn" title="Новый чат">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="Поиск по чатам...">
+    </div>
+    <ul class="chat-list" id="chatList"></ul>
+    <div class="sidebar-footer">
+      <div class="avatar" style="background: linear-gradient(135deg,#34d399,#3b82f6)">Я</div>
+      <div>
+        <div class="me-name">Вы</div>
+        <div class="me-status">В сети</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ЦЕНТРАЛЬНАЯ ПАНЕЛЬ -->
+  <main class="chat glass">
+    <header class="chat-header">
+      <div class="avatar" id="headerAvatar"></div>
+      <div class="chat-title">
+        <div class="name" id="headerName"></div>
+        <div class="status"><i></i><span id="headerStatus"></span></div>
+      </div>
+      <button class="icon-btn" title="Ещё">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+      </button>
+    </header>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="typing" id="typing">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+    </div>
+
+    <form class="composer" id="composer">
+      <input type="text" id="messageInput" placeholder="Написать сообщение..." autocomplete="off">
+      <button class="send-btn" id="sendBtn" type="submit" disabled title="Отправить">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </form>
+  </main>
+
+</div>
+
+<script>
+  // ====== ФЕЙКОВЫЕ ДАННЫЕ ======
+  const ME = { id: "me", name: "Вы" };
+
+  const chats = [
+    {
+      id: 1,
+      name: "Алина",
+      status: "в сети",
+      gradient: "linear-gradient(135deg,#ff9a9e,#fad0c4)",
+      unread: 2,
+      replies: [
+        "Согласна! 😊",
+        "А ты как думаешь?",
+        "Ой, это отличная идея!",
+        "Дай подумаю немного...",
+        "Я за! Го делать)",
+      ],
+      messages: [
+        { from: "user", text: "Привет! Ты уже видел новый трейлер?", time: "09:12" },
+        { from: "me", text: "Привет! Нет ещё, гляну вечером", time: "09:14" },
+        { from: "user", text: "Обязательно глянь, там супер графика 🔥", time: "09:15" },
+        { from: "user", text: "Скину тебе ссылку в пять", time: "09:15" },
+        { from: "me", text: "Договорились!", time: "09:16" },
+      ],
+    },
+    {
+      id: 2,
+      name: "Макс",
+      status: "был(а) недавно",
+      gradient: "linear-gradient(135deg,#667eea,#764ba2)",
+      unread: 0,
+      replies: [
+        "Норм, давай так",
+        "У меня завал до пятницы",
+        "Хаха, точно 😂",
+        "Погнали в субботу!",
+        "Я вечером отпишусь",
+      ],
+      messages: [
+        { from: "me", text: "Макс, ты скинул макет?", time: "вчера 18:02" },
+        { from: "user", text: "Щас, минут через 10", time: "вчера 18:05" },
+        { from: "user", text: "Готово, глянь в фигме", time: "вчера 18:17" },
+      ],
+    },
+    {
+      id: 3,
+      name: "Ксюша",
+      status: "в сети",
+      gradient: "linear-gradient(135deg,#f093fb,#f5576c)",
+      unread: 5,
+      replies: [
+        "Ахахах, ну ты выдал 😂",
+        "Мне нравится эта идея!",
+        "Давай обсудим вживую",
+        "Кстати, кот фото скинь",
+        "Окей-окей, бегу",
+      ],
+      messages: [
+        { from: "user", text: "Представляешь, купила билеты!", time: "08:30" },
+        { from: "me", text: "Класс! Куда летишь?", time: "08:33" },
+        { from: "user", text: "В Питер, на выходные", time: "08:34" },
+        { from: "user", text: "Уже жду не дождусь 🥰", time: "08:34" },
+        { from: "user", text: "И это, ты с нами?", time: "08:35" },
+      ],
+    },
+    {
+      id: 4,
+      name: "Team Sync",
+      status: "5 участников",
+      gradient: "linear-gradient(135deg,#43e97b,#38f9d7)",
+      unread: 0,
+      replies: [
+        "Принято, спасибо!",
+        "Обсудим на стендапе",
+        "Плюсую за это решение",
+        "Скиньте в репозиторий",
+      ],
+      messages: [
+        { from: "user", text: "Коллеги, ревью кода завтра до обеда 🙏", time: "10:00" },
+        { from: "user", text: "Андрей, поправь таймауты в запросах", time: "10:04" },
+        { from: "me", text: "Понял, сделаю к вечеру", time: "10:06" },
+      ],
+    },
+    {
+      id: 5,
+      name: "Мама",
+      status: "был(а) 2 часа назад",
+      gradient: "linear-gradient(135deg,#f6d365,#fda085)",
+      unread: 0,
+      replies: [
+        "Хорошо, сынок 💛",
+        "Не забывай кушать!",
+        "Мы гордимся тобой",
+        "Звони чаще, пожалуйста",
+      ],
+      messages: [
+        { from: "user", text: "Сынок, привет! Как дела на работе?", time: "вчера 20:11" },
+        { from: "me", text: "Привет, мам! Всё хорошо, завал небольшой", time: "вчера 20:20" },
+        { from: "user", text: "Умничка. Приезжай на выходных, я испеку пирог", time: "вчера 20:22" },
+      ],
+    },
+  ];
+
+  const replyIndex = new Map(chats.map(c => [c.id, 0]));
+
+  // ====== СОСТОЯНИЕ ======
+  let activeId = chats[0].id;
+  const messagesEl = document.getElementById("messages");
+  const typingEl = document.getElementById("typing");
+  const chatListEl = document.getElementById("chatList");
+  const composer = document.getElementById("composer");
+  const input = document.getElementById("messageInput");
+  const sendBtn = document.getElementById("sendBtn");
+
+  const now = () => new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const chatById = id => chats.find(c => c.id === id);
+  const getActive = () => chatById(activeId);
+
+  // ====== ОТРИСОВКА СПИСКА ЧАТОВ ======
+  function previewOf(chat) {
+    const last = chat.messages[chat.messages.length - 1];
+    if (!last) return "Нет сообщений";
+    const prefix = last.from === "me" ? "Вы: " : "";
+    return prefix + last.text;
+  }
+
+  function renderChatList(filter = "") {
+    const q = filter.trim().toLowerCase();
+    chatListEl.innerHTML = chats
+      .filter(c => !q || c.name.toLowerCase().includes(q))
+      .map(c => {
+        const last = c.messages[c.messages.length - 1];
+        return `
+          <li class="chat-item ${c.id === activeId ? "active" : ""}" data-id="${c.id}">
+            <div class="avatar" style="background:${c.gradient}">${c.name[0]}${c.status === "в сети" ? '<span class="status-dot"></span>' : ""}</div>
+            <div class="chat-meta">
+              <div class="chat-name">${escapeHtml(c.name)}</div>
+              <div class="chat-preview">${escapeHtml(previewOf(c))}</div>
+            </div>
+            <div class="chat-side">
+              <span class="chat-time">${last ? last.time : ""}</span>
+              ${c.unread ? `<span class="chat-badge">${c.unread}</span>` : ""}
+            </div>
+          </li>`;
+      })
+      .join("");
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, m => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[m]));
+  }
+
+  // ====== ОТРИСОВКА СООБЩЕНИЙ ======
+  function renderMessages() {
+    const chat = getActive();
+    const msgs = chat.messages;
+    messagesEl.innerHTML = `<div class="day-divider">Сегодня</div>` +
+      msgs.map((m, i) => `
+        <div class="msg ${m.from === "me" ? "own" : "other"}" style="animation-delay:${i * 0.035}s">
+          ${m.from !== "me" ? `<span class="msg-name">${escapeHtml(chat.name)}</span>` : ""}
+          <div class="bubble">${escapeHtml(m.text)}</div>
+          <span class="msg-time">${m.time}</span>
+        </div>`)
+      .join("");
+    scrollToBottom();
+  }
+
+  function renderHeader() {
+    const chat = getActive();
+    const avatar = document.getElementById("headerAvatar");
+    avatar.style.background = chat.gradient;
+    avatar.textContent = chat.name[0];
+    document.getElementById("headerName").textContent = chat.name;
+    document.getElementById("headerStatus").textContent = chat.status;
+  }
+
+  function scrollToBottom() {
+    requestAnimationFrame(() => {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
+
+  // ====== ПЕРЕКЛЮЧЕНИЕ ЧАТА ======
+  function selectChat(id) {
+    activeId = id;
+    chatById(id).unread = 0;
+    hideTyping();
+    renderChatList(document.getElementById("searchInput").value);
+    renderMessages();
+    renderHeader();
+    input.focus();
+  }
+
+  // ====== ОТПРАВКА / ОТВЕТ ======
+  function addMessage(chatId, msg) {
+    chatById(chatId).messages.push(msg);
+  }
+
+  function showTyping() {
+    typingEl.classList.add("show");
+    requestAnimationFrame(() => typingEl.scrollIntoView({ behavior: "smooth", block: "end" }));
+  }
+  function hideTyping() {
+    typingEl.classList.remove("show");
+  }
+
+  function nextReply(chat) {
+    const i = replyIndex.get(chat.id) % chat.replies.length;
+    replyIndex.set(chat.id, i + 1);
+    return chat.replies[i];
+  }
+
+  function send() {
+    const text = input.value.trim();
+    if (!text) return;
+    addMessage(activeId, { from: "me", text, time: now() });
+    renderMessages();
+    renderChatList(document.getElementById("searchInput").value);
+    input.value = "";
+    updateSendBtn();
+
+    // Имитация ответа: индикатор «печатает» -> сообщение
+    setTimeout(showTyping, 550);
+    setTimeout(() => {
+      hideTyping();
+      const chat = getActive();
+      if (!chat) return;
+      addMessage(chat.id, { from: "user", text: nextReply(chat), time: now() });
+      renderMessages();
+      renderChatList(document.getElementById("searchInput").value);
+    }, 2400);
+  }
+
+  function updateSendBtn() {
+    sendBtn.disabled = input.value.trim() === "";
+  }
+
+  // ====== СОБЫТИЯ ======
+  chatListEl.addEventListener("click", e => {
+    const item = e.target.closest(".chat-item");
+    if (item) selectChat(Number(item.dataset.id));
+  });
+
+  composer.addEventListener("submit", e => {
+    e.preventDefault();
+    send();
+  });
+
+  input.addEventListener("input", updateSendBtn);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) e.preventDefault();
+  });
+
+  document.getElementById("searchInput").addEventListener("input", e =>
+    renderChatList(e.target.value));
+
+  document.getElementById("newChatBtn").addEventListener("click", () => {
+    input.focus();
+    input.placeholder = "Новый чат скоро будет здесь 🙂";
+    setTimeout(() => { input.placeholder = "Написать сообщение..."; }, 2000);
+  });
+
+  // ====== ИНИЦИАЛИЗАЦИЯ ======
+  renderChatList();
+  renderHeader();
+  renderMessages();
+  updateSendBtn();
+</script>
+</body>
+</html>
