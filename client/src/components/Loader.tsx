@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 export type LoaderMode = "full" | "calm" | "off";
 
 const STATUSES = ["Подключаемся…", "Загружаем сообщения…", "Раскладываем уют…", "Почти готово…"];
-const DUR = 1900;
+const DUR = 3200;
+const STATUS_STEP = 1100;
 
 interface LoaderProps {
   ready: boolean;
@@ -37,12 +38,13 @@ export default function Loader({ ready, onDone, mode }: LoaderProps) {
         setStatusKey((k) => k + 1);
         return STATUSES[(STATUSES.indexOf(cur) + 1) % STATUSES.length];
       });
-    }, 900);
+    }, STATUS_STEP);
 
     const t0 = performance.now();
     let raf = 0;
     const step = (now: number) => {
-      let p = Math.min(1, (now - t0) / DUR);
+      let x = Math.min(1, (now - t0) / DUR);
+      let p = 1 - Math.pow(1 - x, 4); // притормаживаем к концу
       if (p >= 1 && !readyRef.current) p = 0.97;
       const pct = Math.round(p * 100);
       if (numRef.current) numRef.current.textContent = String(pct);
