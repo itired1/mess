@@ -282,6 +282,14 @@ export default function App() {
       setUser((prev) => (prev && prev.id === u.id ? u : prev));
     });
 
+    socket.on("presence", ({ userId, online, lastSeen }: { userId: string; online: boolean; lastSeen?: number }) => {
+      setUsers((prev) => {
+        const cur = prev[userId];
+        if (!cur) return prev;
+        return { ...prev, [userId]: { ...cur, online, lastSeen: lastSeen ?? cur.lastSeen } };
+      });
+    });
+
     socket.on("friends:updated", loadFriends);
 
     socket.on("message:new", (msg: Message) => {

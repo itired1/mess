@@ -1,0 +1,17 @@
+{
+  "name": "lilbrumessage",
+  "version": "0.1.0",
+  "description": "lilbrumessage desktop messenger",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "bundle": "node build.mjs",
+    "dist": "npm run bundle && electron-packager . lilbrumessage --platform=win32 --arch=x64 --out=release --overwrite --asar"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-packager": "^17.1.2"
+  }
+}

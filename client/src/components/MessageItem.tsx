@@ -1,7 +1,7 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { cloneElement, isValidElement, memo, useEffect, useRef, useState } from "react";
 import { Fragment, ReactNode } from "react";
 import { Attachment, Message, REACTION_EMOJIS } from "../types";
-import { formatClock, renderInline } from "../lib/format";
+import { formatClock, renderBlocks } from "../lib/format";
 
 function fmtSize(n: number): string {
   if (n < 1024) return `${n} Б`;
@@ -94,19 +94,22 @@ function MessageItem({
   const mineReacted = (emoji: string) => message.reactions?.[emoji]?.includes(myId) ?? false;
 
   const renderText = (text: string) => {
-    const parts = renderInline(text);
-    return query ? (
-      <>
-        {parts.map((p, i) =>
-          typeof p === "string" ? (
-            <Fragment key={i}>{highlight(p, query)}</Fragment>
-          ) : (
-            <Fragment key={i}>{p}</Fragment>
-          )
-        )}
-      </>
-    ) : (
-      parts
+    const blocks = renderBlocks(text);
+    if (!query) return blocks;
+    const hl = (nodes: ReactNode[]) =>
+      nodes.map((n, i) =>
+        typeof n === "string" ? (
+          <Fragment key={i}>{highlight(n, query)}</Fragment>
+        ) : (
+          <Fragment key={i}>{n}</Fragment>
+        )
+      );
+    return blocks.map((b, i) =>
+      isValidElement(b) ? (
+        cloneElement(b, { key: i, children: hl((b.props.children as ReactNode[]) ?? []) })
+      ) : (
+        <Fragment key={i}>{b}</Fragment>
+      )
     );
   };
 

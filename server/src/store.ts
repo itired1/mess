@@ -36,6 +36,7 @@ const USERS: FullUser[] = [];
 export const CHATS: Chat[] = [];
 export const READ_UP_TO: Record<string, number> = {};
 export const ONLINE = new Set<string>();
+export const LAST_SEEN = new Map<string, number>();
 
 const TOKENS = new Map<string, string>();
 
@@ -151,6 +152,7 @@ function publicUser(u: FullUser): User {
     name: u.name,
     gradient: u.gradient,
     online: ONLINE.has(u.id),
+    lastSeen: LAST_SEEN.get(u.id) ?? undefined,
     avatar: u.avatar,
     banner: u.banner,
   };
@@ -208,6 +210,7 @@ export function registerUser(name: string, password: string): User | null {
     passwordHash: hashPassword(password),
   };
   USERS.push(u);
+  LAST_SEEN.set(u.id, Date.now());
   scheduleSave();
   return publicUser(u);
 }

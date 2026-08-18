@@ -5,6 +5,7 @@ export interface User {
   avatar?: string;
   banner?: string;
   online: boolean;
+  lastSeen?: number;
 }
 
 export interface ReactionMap {

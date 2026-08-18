@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Attachment, Chat, Message, ReplyRef, User } from "../types";
+import { lastSeenLabel } from "../lib/format";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
 
@@ -103,7 +104,13 @@ export default function ChatWindow({
     );
   }
 
-  const peerOnline = chat.members.length === 2;
+  const peerOnline = chat.members.length === 2 && Boolean(peer?.online);
+
+  const statusText = () => {
+    if (chat.members.length > 2) return `${chat.memberCount || chat.members.length} участника`;
+    if (peerOnline) return "в сети";
+    return peer?.lastSeen ? lastSeenLabel(peer.lastSeen) : "был(а) недавно";
+  };
 
   return (
     <main className="chat glass">
@@ -121,7 +128,7 @@ export default function ChatWindow({
           <div className="status">
             <i className={`online-dot ${peerOnline ? "" : "off"}`} />
             <span>
-              {chat.members.length > 2 ? `${chat.members.length} участника` : peerOnline ? "в сети" : "был(а) недавно"}
+              {statusText()}
             </span>
           </div>
         </div>

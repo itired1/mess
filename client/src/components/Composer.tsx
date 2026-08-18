@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Attachment, Message, ReplyRef } from "../types";
+import { Attachment, EMOJI_LIST, Message, ReplyRef } from "../types";
 import { uploadFile } from "../api";
 
 interface ComposerProps {
@@ -27,20 +27,61 @@ export default function Composer({
   const [attach, setAttach] = useState<Attachment | null>(null);
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (editMsg) {
       setValue(editMsg.text);
       inputRef.current?.focus();
+      resize();
     }
   }, [editMsg]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, [replyTo?.id]);
+
+  useEffect(() => {
+    resize();
+  }, [value]);
+
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const close = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
+        setEmojiOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [emojiOpen]);
+
+  const resize = () => {
+    const ta = inputRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  };
+
+  const insertEmoji = (e: string) => {
+    const ta = inputRef.current;
+    const start = ta?.selectionStart ?? value.length;
+    const end = ta?.selectionEnd ?? value.length;
+    setValue(value.slice(0, start) + e + value.slice(end));
+    requestAnimationFrame(() => {
+      ta?.focus();
+      const pos = start + e.length;
+      try {
+        ta?.setSelectionRange(pos, pos);
+      } catch {
+        return;
+      }
+    });
+  };
 
   const notifyTyping = () => {
     if (typingTimer.current) clearTimeout(typingTimer.current);
@@ -153,15 +194,52 @@ export default function Composer({
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
           </svg>
         </button>
-        <input
+        <div className="emoji-wrap" ref={emojiRef}>
+          <button
+            type="button"
+            className={`emoji-btn ${emojiOpen ? "active" : ""}`}
+            title="Эмодзи"
+            aria-label="Эмодзи"
+            onClick={() => setEmojiOpen((v) => !v)}
+            disabled={sending || editing}
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+          </button>
+          {emojiOpen && (
+            <div className="emoji-panel">
+              {EMOJI_LIST.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  className="emoji-cell"
+                  onClick={() => insertEmoji(e)}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <textarea
           ref={inputRef}
-          type="text"
+          rows={1}
           value={value}
           placeholder={editing ? "Отредактируйте сообщение..." : "Написать сообщение..."}
           autoComplete="off"
           onChange={(e) => {
             setValue(e.target.value);
             notifyTyping();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              void submit();
+            }
           }}
         />
         <button

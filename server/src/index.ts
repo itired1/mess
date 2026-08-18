@@ -21,6 +21,7 @@ import {
   getMessage,
   getUser,
   isNameTaken,
+  LAST_SEEN,
   leaveChat,
   listUsers,
   loginUser,
@@ -52,12 +53,12 @@ app.use(cors({ origin: CLIENT_ORIGIN }));
 app.use(express.json());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_ROOT = path.resolve(__dirname, "../../data");
-const UPLOADS = path.join(DATA_ROOT, "uploads");
+const DATA_ROOT = process.env.DATA_ROOT ?? path.resolve(__dirname, "../../data");
+const UPLOADS = process.env.UPLOADS_DIR ?? path.join(DATA_ROOT, "uploads");
 fs.mkdirSync(UPLOADS, { recursive: true });
 app.use("/uploads", express.static(UPLOADS, { maxAge: "7d", immutable: true }));
 
-const CLIENT_DIST = path.resolve(__dirname, "../../client/dist");
+const CLIENT_DIST = process.env.CLIENT_DIST ?? path.resolve(__dirname, "../../client/dist");
 if (fs.existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
 }
@@ -541,8 +542,13 @@ io.use((socket, next) => {
 io.on("connection", (socket) => {
   const uid = socket.data.userId as string;
   ONLINE.add(uid);
+  io.emit("presence", { userId: uid, online: true, lastSeen: LAST_SEEN.get(uid) });
   socket.on("disconnect", () => {
-    ONLINE.delete(uid);
+    if (ONLINE.delete(uid)) {
+      const seen = Date.now();
+      LAST_SEEN.set(uid, seen);
+      io.emit("presence", { userId: uid, online: false, lastSeen: seen });
+    }
   });
 
   socket.on("chat:join", (chatId: string) => {
