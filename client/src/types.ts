@@ -9,6 +9,15 @@ export interface ReplyRef {
   text: string;
 }
 
+export interface Attachment {
+  url: string;
+  kind: "image" | "file";
+  name?: string;
+  size?: number;
+  w?: number;
+  h?: number;
+}
+
 export interface Message {
   id: string;
   chatId: string;
@@ -20,6 +29,7 @@ export interface Message {
   reactions?: ReactionMap;
   edited?: boolean;
   deleted?: boolean;
+  attach?: Attachment | null;
 }
 
 export interface Chat {
@@ -48,6 +58,12 @@ export interface User {
   avatar?: string;
   banner?: string;
   online: boolean;
+}
+
+export interface FriendData {
+  friends: User[];
+  incoming: User[];
+  outgoing: User[];
 }
 
 export const REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "😍", "🎉", "👀", "🙏"] as const;

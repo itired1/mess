@@ -45,11 +45,11 @@ export default function Loader({ ready, onDone, mode }: LoaderProps) {
     const step = (now: number) => {
       let x = Math.min(1, (now - t0) / DUR);
       let p = 1 - Math.pow(1 - x, 4); // притормаживаем к концу
-      if (p >= 1 && !readyRef.current) p = 0.97;
       const pct = Math.round(p * 100);
-      if (numRef.current) numRef.current.textContent = String(pct);
-      if (fillRef.current) fillRef.current.style.width = `${pct}%`;
-      if (p < 1) raf = requestAnimationFrame(step);
+      const shown = !readyRef.current && pct >= 100 ? 97 : pct;
+      if (numRef.current) numRef.current.textContent = String(shown);
+      if (fillRef.current) fillRef.current.style.width = `${shown}%`;
+      if (p < 1 || (p >= 1 && !readyRef.current)) raf = requestAnimationFrame(step);
       else finish();
     };
     raf = requestAnimationFrame(step);

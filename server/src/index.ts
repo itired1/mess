@@ -1,29 +1,46 @@
-import crypto from "crypto";
+﻿import crypto from "crypto";
 import { fileURLToPath } from "url";
 import path from "path";
 import express from "express";
 import http from "http";
 import cors from "cors";
 import fs from "fs";
+import multer from "multer";
 import { Server } from "socket.io";
 import {
   addChat,
   addMessage,
   CHATS,
   checkPassword,
+  chatMessages,
+  createToken,
+  deleteChat,
   deleteMessage,
+  editMessage,
   getChat,
   getMessage,
   getUser,
   isNameTaken,
+  leaveChat,
   listUsers,
   loginUser,
   ONLINE,
   READ_UP_TO,
   registerUser,
+  revokeToken,
   saveNow,
   toggleReaction,
+  tokenUser,
+  unreadCount,
   updateProfile,
+} from "./store.js";
+import {
+  acceptFriendRequest,
+  cancelFriendRequest,
+  declineFriendRequest,
+  friendData,
+  removeFriend,
+  sendFriendRequest,
 } from "./store.js";
 import { ChatSummary, NewChatInput, NewMessageInput } from "./types.js";
 
@@ -50,19 +67,11 @@ const io = new Server(server, {
   cors: { origin: CLIENT_ORIGIN },
 });
 
-// Сессии: token -> userId
-const tokens = new Map<string, string>();
-
-function issueToken(userId: string): string {
-  const token = crypto.randomBytes(24).toString("hex");
-  tokens.set(token, userId);
-  return token;
-}
-
+// Сессии: токены хранятся в базе (переживают рестарт сервера)
 function userIdFromRequest(req: express.Request): string | undefined {
   const header = req.headers.authorization ?? "";
   const token = header.replace(/^Bearer\s+/i, "");
-  return tokens.get(token);
+  return tokenUser(token);
 }
 
 function requireAuth(
@@ -83,7 +92,49 @@ function getUserId(req: express.Request): string {
   return (req as express.Request & { userId?: string }).userId as string;
 }
 
-function summaryOf(id: string): ChatSummary | undefined {
+// ---------- Лимиты авторизации ----------
+
+const authAttempts = new Map<string, { count: number; window: number }>();
+const AUTH_WINDOW_MS = 10 * 60_000;
+const AUTH_MAX_LOGIN = 60;
+const AUTH_MAX_REGISTER = 30;
+
+function authLimiterFor(ip: string, max: number): number | null {
+  const now = Date.now();
+  const rec = authAttempts.get(ip);
+  if (!rec || rec.window < now) {
+    authAttempts.set(ip, { count: 1, window: now + AUTH_WINDOW_MS });
+    return null;
+  }
+  rec.count++;
+  return rec.count > max ? rec.count : null;
+}
+
+function clearAuthLimit(ip: string) {
+  authAttempts.delete(ip);
+}
+
+function authRateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const over = authLimiterFor(ip, AUTH_MAX_LOGIN);
+  if (over !== null) {
+    res.status(429).json({ error: "Слишком много попыток. Подождите пару минут" });
+    return;
+  }
+  next();
+}
+
+function registerRateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const over = authLimiterFor(ip, AUTH_MAX_REGISTER);
+  if (over !== null) {
+    res.status(429).json({ error: "Слишком много регистраций. Подождите пару минут" });
+    return;
+  }
+  next();
+}
+
+function summaryOf(id: string, uid: string): ChatSummary | undefined {
   const c = getChat(id);
   if (!c) return undefined;
   const lastMessage = c.messages[c.messages.length - 1] ?? null;
@@ -94,22 +145,22 @@ function summaryOf(id: string): ChatSummary | undefined {
     members: c.members,
     memberCount: c.members.length,
     online: c.members.some((m) => ONLINE.has(m)),
-    unread: 0,
+    unread: unreadCount(id, uid),
     lastMessage,
   };
 }
 
-function emitChanged(chatId: string, messageId?: string) {
+function emitChanged(uid: string, chatId: string, messageId?: string) {
   if (messageId) {
     const m = getMessage(chatId, messageId);
     if (m) io.to(chatId).emit("message:changed", m);
   }
-  io.to(chatId).emit("chats:updated", summaryOf(chatId));
+  io.to(chatId).emit("chats:updated", summaryOf(chatId, uid));
 }
 
 // ---------- Аутентификация ----------
 
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", registerRateLimit, (req, res) => {
   const { name, password } = req.body ?? {};
   if (typeof name !== "string" || typeof password !== "string") {
     return res.status(400).json({ error: "Не хватает данных" });
@@ -130,7 +181,7 @@ app.post("/api/auth/register", (req, res) => {
   if (!user) {
     return res.status(400).json({ error: "Что-то пошло не так, попробуйте ещё раз" });
   }
-  res.status(201).json({ user, token: issueToken(user.id) });
+  res.status(201).json({ user, token: createToken(user.id) });
 });
 
 app.get("/api/auth/check-name", (req, res) => {
@@ -140,7 +191,7 @@ app.get("/api/auth/check-name", (req, res) => {
   res.json({ available: !isNameTaken(name), reason: "ok" });
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", authRateLimit, (req, res) => {
   const { name, password } = req.body ?? {};
   if (typeof name !== "string" || typeof password !== "string") {
     return res.status(400).json({ error: "Не хватает данных" });
@@ -149,13 +200,79 @@ app.post("/api/auth/login", (req, res) => {
   if (!user) {
     return res.status(401).json({ error: "Неверное имя или пароль" });
   }
-  res.json({ user, token: issueToken(user.id) });
+  clearAuthLimit(req.ip || req.socket.remoteAddress || "unknown");
+  res.json({ user, token: createToken(user.id) });
 });
 
 app.get("/api/auth/me", requireAuth, (req, res) => {
   const user = getUser(getUserId(req));
   if (!user) return res.status(404).json({ error: "Пользователь не найден" });
   res.json({ user });
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  const header = req.headers.authorization ?? "";
+  const token = header.replace(/^Bearer\s+/i, "");
+  if (token) revokeToken(token);
+  res.json({ ok: true });
+});
+
+// ---------- Друзья ----------
+
+app.get("/api/friends", requireAuth, (req, res) => {
+  res.json(friendData(getUserId(req)));
+});
+
+app.post("/api/friends/request", requireAuth, (req, res) => {
+  const me = getUserId(req);
+  const { toUserId } = req.body ?? {};
+  if (typeof toUserId !== "string") return res.status(400).json({ error: "Нет получателя" });
+  const ok = sendFriendRequest(me, toUserId);
+  if (!ok) return res.status(400).json({ error: "Нельзя: уже друзья, заявка уже есть или пользователь не найден" });
+  io.emit("friends:updated", { userId: me });
+  io.emit("friends:updated", { userId: toUserId });
+  res.json({ ok: true });
+});
+
+app.post("/api/friends/accept", requireAuth, (req, res) => {
+  const me = getUserId(req);
+  const { fromUserId } = req.body ?? {};
+  if (typeof fromUserId !== "string") return res.status(400).json({ error: "Нет отправителя" });
+  const ok = acceptFriendRequest(me, fromUserId);
+  if (!ok) return res.status(400).json({ error: "Заявка не найдена" });
+  io.emit("friends:updated", { userId: me });
+  io.emit("friends:updated", { userId: fromUserId });
+  res.json({ ok: true });
+});
+
+app.post("/api/friends/decline", requireAuth, (req, res) => {
+  const me = getUserId(req);
+  const { fromUserId } = req.body ?? {};
+  if (typeof fromUserId !== "string") return res.status(400).json({ error: "Нет отправителя" });
+  declineFriendRequest(me, fromUserId);
+  io.emit("friends:updated", { userId: me });
+  io.emit("friends:updated", { userId: fromUserId });
+  res.json({ ok: true });
+});
+
+app.post("/api/friends/cancel", requireAuth, (req, res) => {
+  const me = getUserId(req);
+  const { toUserId } = req.body ?? {};
+  if (typeof toUserId !== "string") return res.status(400).json({ error: "Нет получателя" });
+  cancelFriendRequest(me, toUserId);
+  io.emit("friends:updated", { userId: me });
+  io.emit("friends:updated", { userId: toUserId });
+  res.json({ ok: true });
+});
+
+app.post("/api/friends/remove", requireAuth, (req, res) => {
+  const me = getUserId(req);
+  const { userId } = req.body ?? {};
+  if (typeof userId !== "string") return res.status(400).json({ error: "Нет пользователя" });
+  removeFriend(me, userId);
+  io.emit("friends:updated", { userId: me });
+  io.emit("friends:updated", { userId });
+  res.json({ ok: true });
 });
 
 app.post("/api/profile", requireAuth, (req, res) => {
@@ -243,7 +360,7 @@ app.get("/api/users", requireAuth, (req, res) => {
 
 app.get("/api/chats", requireAuth, (req, res) => {
   const uid = getUserId(req);
-  res.json(CHATS.filter((c) => c.members.includes(uid)).map((c) => summaryOf(c.id)).filter(Boolean));
+  res.json(CHATS.filter((c) => c.members.includes(uid)).map((c) => summaryOf(c.id, uid)).filter(Boolean));
 });
 
 app.get("/api/chats/:id", requireAuth, (req, res) => {
@@ -258,26 +375,45 @@ app.get("/api/chats/:id", requireAuth, (req, res) => {
 app.get("/api/chats/:id/messages", requireAuth, (req, res) => {
   const c = getChat(req.params.id);
   if (!c) return res.status(404).json({ error: "Чат не найден" });
-  res.json(c.messages);
+  if (!c.members.includes(getUserId(req))) {
+    return res.status(403).json({ error: "Нет доступа к чату" });
+  }
+  const before = Number(req.query.before ?? NaN);
+  const limit = Number(req.query.limit ?? 50);
+  res.json(
+    chatMessages(
+      req.params.id,
+      Number.isFinite(before) ? before : undefined,
+      Number.isFinite(limit) ? limit : 50
+    )
+  );
 });
 
 app.post("/api/chats/:id/messages", requireAuth, (req, res) => {
-  const { text, replyTo } = req.body as NewMessageInput;
+  const { text, replyTo, attach } = req.body as NewMessageInput;
   const t = text?.trim();
-  if (!t) return res.status(400).json({ error: "Пустое сообщение" });
+  if (!t && !attach) return res.status(400).json({ error: "Пустое сообщение" });
 
-  const msg = addMessage(req.params.id, getUserId(req), t, replyTo);
+  const msg = addMessage(req.params.id, getUserId(req), t ?? "", replyTo, attach);
   if (!msg) return res.status(404).json({ error: "Чат не найден" });
 
   io.to(msg.chatId).emit("message:new", msg);
-  io.to(msg.chatId).emit("chats:updated", summaryOf(msg.chatId));
+  io.to(msg.chatId).emit("chats:updated", summaryOf(msg.chatId, getUserId(req)));
   res.status(201).json(msg);
+});
+
+app.patch("/api/chats/:id/messages/:msgId", requireAuth, (req, res) => {
+  const { text } = req.body as { text?: string };
+  const edited = editMessage(req.params.id, req.params.msgId, getUserId(req), text ?? "");
+  if (!edited) return res.status(404).json({ error: "Сообщение не найдено" });
+  emitChanged(getUserId(req), req.params.id, edited.id);
+  res.json(edited);
 });
 
 app.delete("/api/chats/:id/messages/:msgId", requireAuth, (req, res) => {
   const deleted = deleteMessage(req.params.id, req.params.msgId, getUserId(req));
   if (!deleted) return res.status(404).json({ error: "Сообщение не найдено" });
-  emitChanged(req.params.id, deleted.id);
+  emitChanged(getUserId(req), req.params.id, deleted.id);
   res.json(deleted);
 });
 
@@ -286,7 +422,7 @@ app.post("/api/chats/:id/messages/:msgId/react", requireAuth, (req, res) => {
   if (!emoji) return res.status(400).json({ error: "Нет emoji" });
   const reacted = toggleReaction(req.params.id, req.params.msgId, emoji, getUserId(req));
   if (!reacted) return res.status(404).json({ error: "Сообщение не найдено" });
-  emitChanged(req.params.id, reacted.id);
+  emitChanged(getUserId(req), req.params.id, reacted.id);
   res.json(reacted);
 });
 
@@ -296,11 +432,107 @@ app.post("/api/chats", requireAuth, (req, res) => {
   res.status(201).json(c);
 });
 
+// ---------- Вложения ----------
+
+const IMAGE_EXT = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_BYTES, files: 1 },
+});
+
+app.post("/api/upload", requireAuth, upload.single("file"), (req, res) => {
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: "Файл не передан" });
+  const ext = (path.extname(file.originalname || "").slice(1) || "").toLowerCase().slice(0, 8);
+  const isImage = file.mimetype.startsWith("image/") || IMAGE_EXT.has(ext);
+  const name = `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext || (isImage ? "img" : "bin")}`;
+  const dir = isImage ? path.join(UPLOADS, "images") : path.join(UPLOADS, "files");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, name), file.buffer);
+
+  let w: number | undefined;
+  let h: number | undefined;
+  if (isImage) {
+    try {
+      const header = file.buffer.subarray(0, 8).toString("hex");
+      if (header.startsWith("89504e470d0a1a0a")) {
+        w = file.buffer.readUInt32BE(16);
+        h = file.buffer.readUInt32BE(20);
+      } else if (header.slice(0, 4) === "ffd8ff") {
+        // размеры JPEG: ищем SOF-маркеры
+        let off = 2;
+        const buf = file.buffer;
+        while (off + 9 < buf.length) {
+          if (buf[off] !== 0xff) { off++; continue; }
+          const marker = buf[off + 1];
+          if (marker === 0xc0 || (marker >= 0xc1 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7)) {
+            h = buf.readUInt16BE(off + 5);
+            w = buf.readUInt16BE(off + 7);
+            break;
+          }
+          off += 2 + buf.readUInt16BE(off + 2);
+        }
+      } else if (header.slice(0, 4) === "524946" && file.buffer.subarray(8, 12).toString("ascii") === "WEBP") {
+        // WEBP: VP8X (4 байта: 24-bit ширина/высота)
+        const wb = file.buffer.subarray(0, 80);
+        const chunk = wb.indexOf(Buffer.from("VP8X"));
+        if (chunk !== -1 && chunk + 18 <= wb.length) {
+          w = wb.readUIntLE(chunk + 12, 3);
+          h = wb.readUIntLE(chunk + 15, 3);
+        }
+      }
+    } catch {
+      /* размеры не критичны */
+    }
+  }
+
+  res.status(201).json({
+    url: `${isImage ? "/uploads/images/" : "/uploads/files/"}${name}`,
+    kind: isImage ? "image" : "file",
+    name: file.originalname || name,
+    size: file.size,
+    ...(isImage && w && h ? { w, h } : {}),
+  });
+});
+
+// ---------- Управление чатом ----------
+
+app.post("/api/chats/:id/leave", requireAuth, (req, res) => {
+  const uid = getUserId(req);
+  const chatId = req.params.id;
+  const c = getChat(chatId);
+  if (!c || !c.members.includes(uid)) return res.status(404).json({ error: "Чат не найден" });
+  const members = [...c.members];
+  const result = leaveChat(chatId, uid);
+  if (!result.removed) return res.status(404).json({ error: "Чат не найден" });
+  for (const m of members) {
+    if (m !== uid) io.to(m).emit("chats:updated", summaryOf(chatId, m));
+  }
+  io.in(chatId).socketsLeave(chatId);
+  res.json({ ok: true, deleted: result.deleted });
+});
+
+app.delete("/api/chats/:id", requireAuth, (req, res) => {
+  const uid = getUserId(req);
+  const chatId = req.params.id;
+  const c = getChat(chatId);
+  if (!c || !c.members.includes(uid)) return res.status(404).json({ error: "Чат не найден" });
+  const members = [...c.members];
+  if (!deleteChat(chatId)) return res.status(404).json({ error: "Чат не найден" });
+  for (const m of members) {
+    io.to(m).emit("chat:deleted", { chatId });
+  }
+  io.in(chatId).socketsLeave(chatId);
+  res.json({ ok: true });
+});
+
 // ---------- Socket.IO ----------
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token as string | undefined;
-  const uid = token ? tokens.get(token) : undefined;
+  const uid = token ? tokenUser(token) : undefined;
   if (!uid) return next(new Error("unauthorized"));
   socket.data.userId = uid;
   next();
@@ -343,7 +575,7 @@ io.on("connection", (socket) => {
       saveNow();
       io.to(chatId).emit("message:new", msg);
       io.to(chatId).emit("messages:read", { chatId, upToTs: READ_UP_TO[chatId] });
-      io.to(chatId).emit("chats:updated", summaryOf(chatId));
+      io.to(chatId).emit("chats:updated", summaryOf(chatId, uid));
       ack?.(msg);
     }
   );
@@ -352,14 +584,21 @@ io.on("connection", (socket) => {
     const c = getChat(chatId);
     if (!c || !c.members.includes(uid)) return;
     const reacted = toggleReaction(chatId, messageId, emoji, uid);
-    if (reacted) emitChanged(chatId, reacted.id);
+    if (reacted) emitChanged(uid, chatId, reacted.id);
   });
 
   socket.on("message:delete", ({ chatId, messageId }: { chatId: string; messageId: string }) => {
     const c = getChat(chatId);
     if (!c || !c.members.includes(uid)) return;
     const deleted = deleteMessage(chatId, messageId, uid);
-    if (deleted) emitChanged(chatId, deleted.id);
+    if (deleted) emitChanged(uid, chatId, deleted.id);
+  });
+
+  socket.on("message:edit", ({ chatId, messageId, text }: { chatId: string; messageId: string; text: string }) => {
+    const c = getChat(chatId);
+    if (!c || !c.members.includes(uid)) return;
+    const edited = editMessage(chatId, messageId, uid, text ?? "");
+    if (edited) emitChanged(uid, chatId, edited.id);
   });
 
   socket.on("typing", ({ chatId, typing }: { chatId: string; typing: boolean }) => {

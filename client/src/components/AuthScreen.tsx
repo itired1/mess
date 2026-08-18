@@ -25,6 +25,16 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() =>
+    document.documentElement.dataset.theme === "dark" || localStorage.getItem("theme") === "dark" ? "dark" : "light"
+  );
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem("theme", next);
+  };
 
   const debouncedName = useDebounce(name.trim(), 380);
   const [nameState, setNameState] = useState<NameState>({ status: "idle" });
@@ -107,6 +117,10 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
         <span className="aurora a2" />
         <span className="aurora a3" />
       </div>
+
+      <button className="auth-theme-btn" onClick={toggleTheme} title={theme === "dark" ? "Светлая тема" : "Тёмная тема"} aria-label="Переключить тему">
+        {theme === "dark" ? "☀️" : "🌙"}
+      </button>
 
       <div className="auth-card glass">
         <div className="auth-brand">

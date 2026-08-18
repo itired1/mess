@@ -1,7 +1,35 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { Fragment, ReactNode } from "react";
-import { Message, REACTION_EMOJIS } from "../types";
+import { Attachment, Message, REACTION_EMOJIS } from "../types";
 import { formatClock, renderInline } from "../lib/format";
+
+function fmtSize(n: number): string {
+  if (n < 1024) return `${n} Б`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} КБ`;
+  return `${(n / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+function AttachView({ attach }: { attach: Attachment }) {
+  if (attach.kind === "image") {
+    return (
+      <img
+        className="attach-img"
+        src={attach.url}
+        alt={attach.name ?? "изображение"}
+        draggable={false}
+        loading="lazy"
+        onClick={() => window.open(attach.url, "_blank", "noopener")}
+      />
+    );
+  }
+  return (
+    <a className="attach-file" href={attach.url} target="_blank" rel="noreferrer">
+      <span className="attach-file-ico">📎</span>
+      <span className="attach-file-name">{attach.name ?? "файл"}</span>
+      {attach.size != null && <span className="attach-file-size">{fmtSize(attach.size)}</span>}
+    </a>
+  );
+}
 
 interface MessageItemProps {
   message: Message;
@@ -15,6 +43,7 @@ interface MessageItemProps {
   onReact: (chatId: string, messageId: string, emoji: string) => void;
   onReply: (msg: Message) => void;
   onDelete: (chatId: string, messageId: string) => void;
+  onEdit: (msg: Message) => void;
 }
 
 function highlight(text: string, query: string): ReactNode {
@@ -44,6 +73,7 @@ function MessageItem({
   onReact,
   onReply,
   onDelete,
+  onEdit,
 }: MessageItemProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -108,9 +138,14 @@ function MessageItem({
           ↩
         </button>
         {own && !deleted && (
-          <button className="mini-btn danger" title="Удалить" onClick={() => onDelete(message.chatId, message.id)}>
-            ✕
-          </button>
+          <>
+            <button className="mini-btn" title="Редактировать" onClick={() => onEdit(message)}>
+              ✎
+            </button>
+            <button className="mini-btn danger" title="Удалить" onClick={() => onDelete(message.chatId, message.id)}>
+              ✕
+            </button>
+          </>
         )}
       </div>
 
@@ -135,7 +170,10 @@ function MessageItem({
           {deleted ? (
             <em className="deleted-text">Сообщение удалено</em>
           ) : (
-            <>{renderText(message.text)}</>
+            <>
+              {message.attach && <AttachView attach={message.attach} />}
+              {message.text && <div className="msg-text">{renderText(message.text)}</div>}
+            </>
           )}
         </div>
         {showTime && (

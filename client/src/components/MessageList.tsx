@@ -15,6 +15,10 @@ interface MessageListProps {
   onReact: (chatId: string, messageId: string, emoji: string) => void;
   onReply: (msg: Message) => void;
   onDelete: (chatId: string, messageId: string) => void;
+  onEdit: (msg: Message) => void;
+  onLoadOlder: () => void;
+  hasMore: boolean;
+  olderLoading: boolean;
 }
 
 function TypingBubble() {
@@ -47,17 +51,54 @@ export default memo(function MessageList({
   onReact,
   onReply,
   onDelete,
+  onEdit,
+  onLoadOlder,
+  hasMore,
+  olderLoading,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCount = useRef(chat.messages.length);
+  const loadOlderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const olderScroll = useRef<number | null>(null);
 
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
     if (chat.messages.length > prevCount.current) {
-      const el = scrollRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (olderScroll.current !== null) {
+        // добавились старшие сообщения — сохраняем позицию
+        const delta = el.scrollHeight - olderScroll.current;
+        el.scrollTop += delta;
+        olderScroll.current = null;
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
       prevCount.current = chat.messages.length;
     }
   }, [chat.messages.length]);
+
+  // подгрузка старших: сохраняем позицию прокрутки
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    prevCount.current = chat.messages.length;
+    const onScroll = () => {
+      if (el.scrollTop < 60 && hasMore && !olderLoading) {
+        if (loadOlderTimer.current) return;
+        olderScroll.current = el.scrollHeight;
+        loadOlderTimer.current = setTimeout(() => {
+          loadOlderTimer.current = null;
+          onLoadOlder();
+        }, 250);
+      }
+    };
+    el.addEventListener("scroll", onScroll);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (loadOlderTimer.current) clearTimeout(loadOlderTimer.current);
+      loadOlderTimer.current = null;
+    };
+  }, [chat.id, chat.messages.length, hasMore, olderLoading, onLoadOlder]);
 
   useEffect(() => {
     if (!jumpToId) return;
@@ -102,6 +143,7 @@ export default memo(function MessageList({
             onReact={onReact}
             onReply={onReply}
             onDelete={onDelete}
+            onEdit={onEdit}
           />
         </div>
       );
@@ -119,6 +161,15 @@ export default memo(function MessageList({
 
   return (
     <div className="messages" ref={scrollRef}>
+      <div className="msg-history-head">
+        {olderLoading ? (
+          <span className="msg-history-note">Загружаем старые сообщения…</span>
+        ) : hasMore ? (
+          <button className="msg-history-btn" onClick={() => { olderScroll.current = scrollRef.current?.scrollHeight ?? null; onLoadOlder(); }}>
+            Загрузить раньше
+          </button>
+        ) : null}
+      </div>
       {items}
       {isTyping && <TypingBubble />}
     </div>

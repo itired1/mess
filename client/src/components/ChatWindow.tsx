@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Chat, ReplyRef, User } from "../types";
+import { Attachment, Chat, Message, ReplyRef, User } from "../types";
 import MessageList from "./MessageList";
 import Composer from "./Composer";
 
@@ -13,10 +13,19 @@ interface ChatWindowProps {
   onThemeToggle: () => void;
   replyTo: ReplyRef | null;
   onReplyTo: (r: ReplyRef | null) => void;
-  onSend: (text: string, replyTo?: ReplyRef | null) => void;
+  onSend: (text: string, replyTo?: ReplyRef | null, attach?: Attachment | null) => void;
   onTyping: (chatId: string, typing: boolean) => void;
   onReact: (chatId: string, messageId: string, emoji: string) => void;
   onDelete: (chatId: string, messageId: string) => void;
+  editMsg: Message | null;
+  onEditSubmit: (text: string) => void;
+  onEditMessage: (msg: Message) => void;
+  onCancelEdit: () => void;
+  onLoadOlder: () => void;
+  hasMore: boolean;
+  olderLoading: boolean;
+  onLeaveChat: (chatId: string) => void;
+  onDeleteChat: (chatId: string) => void;
 }
 
 export default function ChatWindow({
@@ -33,11 +42,21 @@ export default function ChatWindow({
   onTyping,
   onReact,
   onDelete,
+  editMsg,
+  onEditSubmit,
+  onEditMessage,
+  onCancelEdit,
+  onLoadOlder,
+  hasMore,
+  olderLoading,
+  onLeaveChat,
+  onDeleteChat,
 }: ChatWindowProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [jumpToId, setJumpToId] = useState<string | null>(null);
   const [matchIndex, setMatchIndex] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const matches = chat
     ? chat.messages.map((m, i) => ({ m, i })).filter(({ m }) => m.text.toLowerCase().includes(query.toLowerCase()))
@@ -53,7 +72,10 @@ export default function ChatWindow({
         e.preventDefault();
         setSearchOpen((v) => !v);
       }
-      if (e.key === "Escape") setSearchOpen(false);
+      if (e.key === "Escape") {
+        setSearchOpen(false);
+        setMenuOpen(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -126,13 +148,21 @@ export default function ChatWindow({
             </svg>
           )}
         </button>
-        <button className="icon-btn" title="Ещё" aria-label="Ещё">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="5" cy="12" r="2" />
-            <circle cx="12" cy="12" r="2" />
-            <circle cx="19" cy="12" r="2" />
-          </svg>
-        </button>
+        <div className="chat-menu-wrap">
+          <button className="icon-btn" title="Ещё" aria-label="Ещё" onClick={() => setMenuOpen((v) => !v)}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
+          {menuOpen && (
+            <div className="chat-menu">
+              <button onClick={() => { setMenuOpen(false); onLeaveChat(chat.id); }}>Покинуть чат</button>
+              <button className="danger" onClick={() => { setMenuOpen(false); onDeleteChat(chat.id); }}>Удалить чат</button>
+            </div>
+          )}
+        </div>
       </header>
 
       {searchOpen && (
@@ -172,14 +202,21 @@ export default function ChatWindow({
         onReact={onReact}
         onReply={(m) => onReplyTo({ id: m.id, authorId: m.authorId, authorName: m.authorName, text: m.text })}
         onDelete={onDelete}
+        onEdit={onEditMessage}
+        onLoadOlder={onLoadOlder}
+        hasMore={hasMore}
+        olderLoading={olderLoading}
       />
 
       <Composer
         replyTo={replyTo}
+        editMsg={editMsg}
         onSend={onSend}
         myId={myId}
         onTyping={(t) => onTyping(chat.id, t)}
         onCancelReply={() => onReplyTo(null)}
+        onEditSubmit={onEditSubmit}
+        onCancelEdit={onCancelEdit}
       />
     </main>
   );

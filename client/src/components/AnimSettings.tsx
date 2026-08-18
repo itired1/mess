@@ -9,10 +9,12 @@ const OPTIONS: { value: LoaderMode; label: string; hint: string }[] = [
 interface AnimSettingsProps {
   mode: LoaderMode;
   onChange: (m: LoaderMode) => void;
+  sound: boolean;
+  onSoundChange: (v: boolean) => void;
   onClose: () => void;
 }
 
-export default function AnimSettings({ mode, onChange, onClose }: AnimSettingsProps) {
+export default function AnimSettings({ mode, onChange, sound, onSoundChange, onClose }: AnimSettingsProps) {
   return (
     <div className="setting-pop" role="dialog" aria-label="Настройки анимаций">
       <div className="setting-pop-head">Анимации загрузки</div>
@@ -31,6 +33,21 @@ export default function AnimSettings({ mode, onChange, onClose }: AnimSettingsPr
           </span>
         </button>
       ))}
+      <div className="setting-divider" />
+      <button
+        className="setting-opt"
+        onClick={() => onSoundChange(!sound)}
+        role="checkbox"
+        aria-checked={sound}
+      >
+        <span className="setting-radio">
+          {sound && <i />}
+        </span>
+        <span className="setting-text">
+          <span className="setting-label">Звук уведомлений</span>
+          <span className="setting-hint">короткий сигнал на новое сообщение в другом чате</span>
+        </span>
+      </button>
       <button className="setting-pop-close" onClick={onClose}>
         Готово
       </button>
