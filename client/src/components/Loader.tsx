@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from "react";
 
 export type LoaderMode = "full" | "calm" | "off";
 
+export interface LoaderFriend {
+  name: string;
+  gradient: string;
+  avatar?: string;
+}
+
 const STATUSES = ["Подключаемся…", "Загружаем сообщения…", "Раскладываем уют…", "Почти готово…"];
 const DUR = 3200;
 const STATUS_STEP = 1100;
@@ -10,9 +16,10 @@ interface LoaderProps {
   ready: boolean;
   onDone: () => void;
   mode: LoaderMode;
+  friendAvatars?: LoaderFriend[];
 }
 
-export default function Loader({ ready, onDone, mode }: LoaderProps) {
+export default function Loader({ ready, onDone, mode, friendAvatars }: LoaderProps) {
   const [status, setStatus] = useState(STATUSES[0]);
   const [statusKey, setStatusKey] = useState(0);
 
@@ -87,12 +94,33 @@ export default function Loader({ ready, onDone, mode }: LoaderProps) {
     setTimeout(() => onDoneRef.current(), 600);
   }
 
+  const ringFriends = (friendAvatars ?? []).slice(0, 10);
+  const RING_N = ringFriends.length;
+  const ringStep = RING_N > 0 ? 360 / RING_N : 0;
+
   return (
     <div id="loader" className={`l2 mode-${mode}`} role="status" aria-label="Загрузка lilbrumessage">
       <div className="l2-bg" aria-hidden="true">
         <span className="blob b1" />
         <span className="blob b2" />
-      </div>
+      </div>{RING_N > 0 && mode === "full" && (
+        <div className="l2-orbit" aria-hidden="true">
+          {ringFriends.map((f, i) => (
+            <div
+              key={i}
+              className="l2-orbit-tile"
+              style={{ transform: `rotate(${i * ringStep}deg) translateY(var(--l2r, -150px))` }}
+              title={f.name}
+            >
+              <span className="l2-orbit-fold" style={{ transform: `rotate(${-i * ringStep}deg)` }}>
+                <span className="l2-orbit-avatar" style={{ background: f.gradient }}>
+                  {f.avatar ? <img src={f.avatar} alt={f.name} draggable={false} /> : f.name.charAt(0)}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="l2-box">
         <div className="l2-title">lilbru<em>message</em></div>

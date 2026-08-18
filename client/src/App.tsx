@@ -446,7 +446,12 @@ export default function App() {
   return (
     <>
       {!booted && (
-        <Loader ready={ready} onDone={() => setBooted(true)} mode={animMode} />
+        <Loader
+          ready={ready}
+          onDone={() => setBooted(true)}
+          mode={animMode}
+          friendAvatars={friends?.friends.map((f) => ({ name: f.name, gradient: f.gradient, avatar: f.avatar }))}
+        />
       )}
       <div className="app">
       <div className="bg-aurora">
